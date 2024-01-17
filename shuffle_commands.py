@@ -1271,7 +1271,11 @@ async def pokemon_lookup(context, query=None, enable_dym=True, skill_lookup=Fals
         if result is None:
             return
         else:
-            return choices[result][1]
+            choice = choices[result][1]
+            if skill_lookup:
+                return skill_dict.get(choice.lower(), choice)
+            else:
+                return pokemon_dict.get(choice.lower(), choice)
     
     else:
         return query
