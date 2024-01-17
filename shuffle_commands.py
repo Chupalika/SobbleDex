@@ -121,17 +121,19 @@ async def list_aliases(context, *args, **kwargs):
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_list_aliases_result.format(original, ", ".join(results)))
 
 async def last_stage_pokemon(context: KoduckContext) -> discord.Message | None:
-    assert context.koduck
-    assert context.message
-    user_id = context.message.author.id
-    query_history = context.koduck.query_history[user_id]
-    if len(query_history) < 2 or query_history[-2].type != QueryType.STAGE:
-        return await context.send_message(
-            content=settings.message_pokemon_last_query_not_stage
+    query_ = await latest_stage_query(context)
+    if not query_:
+        return await context.koduck.send_message(
+            receive_message=context.message,
+            content=settings.message_no_previous_stage,
         )
-    query_ = query_history[-2]
+
     if not (query_.args and "pokemon" in query_.kwargs):
-        return await context.send_message(content=settings.message_last_query_error)
+        return await context.koduck.send_message(
+            receive_message=context.message,
+            content=settings.message_last_query_error
+        )
+
     last_stage_pokemon = query_.kwargs['pokemon']
     return await pokemon(context, last_stage_pokemon)
 
@@ -275,34 +277,49 @@ async def type(context, *args, **kwargs):
     else:
         return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_type_embed([query_type] + values))
 
+async def latest_stage_query(context: KoduckContext) -> UserQuery | None:
+    user_id = context.message.author.id
+    query_history = context.koduck.query_history[user_id]
+
+    try:
+        query_ = next(q for q in reversed(query_history) if q.type == QueryType.STAGE)
+    except StopIteration:
+        return
+
+    return query_
+
 async def next_stage(
     context: KoduckContext, *args: str, **kwargs: Any
 ) -> discord.Message | None:
-    query_history = context.koduck.query_history[context.message.author.id]
-    if len(query_history) < 2 or query_history[-2].type != QueryType.STAGE:
+    query_ = await latest_stage_query(context)
+
+    if not query_:
         return await context.koduck.send_message(
             receive_message=context.message,
-            content=settings.message_last_query_not_stage,
+            content=settings.message_no_previous_stage,
         )
-    query_ = query_history[-2]
     if not query_.args:
         return await context.koduck.send_message(
             receive_message=context.message,
             content=settings.message_last_query_error,
         )
+
+    kwargs = query_.kwargs | kwargs
+
     last_stage_id = query_.args[0]
-    if last_stage_id.startswith("s"):
+    if last_stage_id.startswith("s") and last_stage_id[1:].isdigit():
         return await context.koduck.send_message(
             receive_message=context.message,
-            content=settings.message_last_query_not_stage,
+            content=settings.message_last_query_invalid_stage,
         )
-    if last_stage_id.startswith("ex"):
-        return await stage(context, f"ex{int(last_stage_id[2:]) + 1}", **query_.kwargs)
+    if last_stage_id.startswith("ex") and last_stage_id[2:].isdigit():
+        return await stage(context, f"ex{int(last_stage_id[2:]) + 1}", **kwargs)
     if last_stage_id.isdigit():
         next_id = int(last_stage_id) + 1
         if next_id == 701:
             next_id = 1
-        return await stage(context, str(next_id), **query_.kwargs)
+        return await stage(context, str(next_id), **kwargs)
+
     return await context.koduck.send_message(
             receive_message=context.message,
             content=settings.message_last_query_error,

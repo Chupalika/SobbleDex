@@ -74,4 +74,4 @@ e	sobble_calc_functions	explain	prefix	1
 submitcompscore	shuffle_commands	submit_comp_score	prefix	3
 compscores	shuffle_commands	comp_scores	prefix	3
 next	shuffle_commands	next_stage	prefix	1
-nextx	shuffle_commands	next_stage_shorthand	1
+nextx	shuffle_commands	next_stage_shorthand	prefix	1
