@@ -414,14 +414,15 @@ async def stage(context, *args, **kwargs):
     
     #if a result number is given
     elif result_number != 0:
-        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[result_number - 1][0],), kwargs=kwargs | {"pokemon": results[result_number - 1][1]})
-        try:
-            if starting_board:
-                return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_starting_board_embed(results[result_number-1]))
-            else:
-                return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_stage_embed(results[result_number-1], shorthand=shorthand))
-        except IndexError:
+        if not 1 <= result_number <= len(results):
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_result_error.format(len(results)))
+        
+        res = results[result_number - 1]
+        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(res[0],), kwargs=kwargs | {"pokemon": res[1]})
+        if starting_board:
+            return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_starting_board_embed(res))
+        else:
+            return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_stage_embed(res, shorthand=shorthand))
     
     elif len(results) == 1:
         user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[0][0],), kwargs=kwargs | {"pokemon": results[0][1]})
