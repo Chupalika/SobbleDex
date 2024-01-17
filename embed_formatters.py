@@ -1,4 +1,5 @@
 import datetime, pytz
+import math
 import discord
 import settings
 import yadon
@@ -126,7 +127,22 @@ def format_stage_embed(values, eb_data=("", 0, "", 0), shorthand=False):
             hp,
             " (UX: {})".format(int(hp) * 3) if stage_type == "Main" and is_puzzle_stage != "Puzzle" else "",
             " + {} ({})".format(extra_hp, int(hp) + (int(extra_hp) * eb_data[1])) if extra_hp != "0" else "")
-    stats += "\n**{}**: {}\n**Experience**: {}".format("Moves" if moves != "0" else "Seconds", moves if moves != "0" else seconds, exp)
+
+    stats += "\n**{}**: {}".format("Moves" if moves != "0" else "Seconds", moves if moves != "0" else seconds)
+
+    if int(hp) > 1 and is_puzzle_stage != "Puzzle":
+        real_hp = int(hp) if extra_hp == "0" else int(hp) + int(extra_hp) * eb_data[1]
+        if moves != "0":
+            stats += f"\n**Damage/move**: {math.ceil(real_hp / int(moves))}"
+            if "M+5" in items:
+                stats += utils.emojify(f" ([M+5] {math.ceil(real_hp / (int(moves) + 5))})")
+        else:
+            stats += f"\n**Damage/second**: {math.ceil(real_hp / int(seconds))}"
+            if "T+10" in items:
+                stats += utils.emojify(f" ([T+10] {math.ceil(real_hp / (int(seconds) + 10))})")
+
+    stats += "\n**Experience**: {}".format(exp)
+
     if eb_data[3] == 0:
         stats += "\n**Catchability**: {}% + {}%/{}".format(
             base_catch,
