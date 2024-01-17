@@ -106,7 +106,7 @@ message_eb_invalid_param	EB level should be 1 or higher
 message_week_invalid_param	There are {} weeks of events in the event rotation, so I need a number from 1 to {}	
 message_drain_list_no_param	I need HP and moves to calculate drain values!	
 message_drain_list_invalid_param	One of the arguments wasn't an integer greater than 0	
-message_drain_list_invalid_param2	Moves has a limit of 55	
+message_drain_list_invalid_param_2	Moves has a limit of 55	
 message_pokemon_lookup_no_result	Could not find the {} named '{}'	
 message_pokemon_lookup_suggest	Did you mean one of these?	
 message_remind_me_status	You are signed up to be reminded for:\nWeeks: {}\nPokémon: {}	
