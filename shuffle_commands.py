@@ -905,7 +905,7 @@ def pokemon_filter(queries, mega=False, include_fake=False, farmable=0, ss_filte
         if mega and not mega_power:
             continue
         
-        if has_mega and name in ["Charizard", "Mewtwo", "Charizard (Shiny)"]:
+        if has_mega and name in ["Charizard", "Mewtwo", "Charizard (Shiny)", "Mewtwo (Shiny)"]:
             pass
         elif has_mega and "Mega {}".format(name) not in pokedex.keys():
             continue
