@@ -133,9 +133,12 @@ def format_stage_embed(values, eb_data=("", 0, "", 0), shorthand=False):
     if int(hp) > 1 and is_puzzle_stage != "Puzzle":
         real_hp = int(hp) if extra_hp == "0" else int(hp) + int(extra_hp) * eb_data[1]
         if moves != "0":
-            stats += f"\n**Damage/move**: {math.ceil(real_hp / int(moves))}"
+            mobile_moves = int(moves.split()[-1][:-1]) if "(" in moves else int(moves)
+            stats += f"\n**Damage/move**: {math.ceil(real_hp / mobile_moves)}"
             if "M+5" in items:
-                stats += utils.emojify(f" ([M+5] {math.ceil(real_hp / (int(moves) + 5))})")
+                stats += utils.emojify(f" ([M+5] {math.ceil(real_hp / (mobile_moves + 5))})")
+            if "(" in moves:
+                stats += " (mobile)"
         else:
             stats += f"\n**Damage/second**: {math.ceil(real_hp / int(seconds))}"
             if "T+10" in items:
