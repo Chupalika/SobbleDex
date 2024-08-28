@@ -1,6 +1,7 @@
-import re
+import re, difflib, asyncio
 import datetime, pytz
-import settings
+import discord
+import settings, constants
 import yadon
 
 emojis = {}
@@ -66,6 +67,16 @@ def current_eb_pokemon():
             return event_pokemon
     return None
 
+def current_comp_pokemon():
+    query_week = get_current_week()
+    events = yadon.ReadTable(settings.events_table)
+    for index, values in events.items():
+        stage_type, event_pokemon, _, repeat_type, repeat_param_1, _, _, _, duration_string, _, _, _ = values
+        event_week = int(repeat_param_1) + 1
+        if stage_type == "Competitive" and repeat_type == "Rotation" and (event_week == query_week):
+            return event_pokemon
+    return None
+
 def get_current_event_pokemon():
     date = datetime.datetime.now(tz=pytz.utc)
     ans = []
@@ -126,3 +137,103 @@ def get_farmable_pokemon():
             farmable_pokemon.append(event_stage[0])
     
     return farmable_pokemon
+
+#Look up a queried Pokemon to see if it exists as an alias (and/or in an additionally provided list), provide some suggestions to the user if it doesn't, and return the corrected query, otherwise None
+async def pokemon_lookup(context, query=None, enable_dym=True, skill_lookup=False, *args, **kwargs):
+    if query is None:
+        query = args[0]
+    
+    aliases = {k.lower():v[0] for k,v in yadon.ReadTable(settings.aliases_table).items()}
+    try:
+        query = aliases[query.lower()]
+    except KeyError:
+        pass
+    
+    pokemon_dict = {k.lower():k for k in yadon.ReadTable(settings.pokemon_table, named_columns=True).keys()}
+    skill_dict = {k.lower():k for k in yadon.ReadTable(settings.skills_table, named_columns=True).keys()}
+    #get properly capitalized name
+    try:
+        if skill_lookup:
+            query = skill_dict[query.lower()]
+        else:
+            query = pokemon_dict[query.lower()]
+    except KeyError:
+        pass
+    
+    if (not skill_lookup and query.lower() not in pokemon_dict.keys()) or (skill_lookup and query.lower() not in skill_dict.keys()):
+        if not enable_dym:
+            return
+        
+        if skill_lookup:
+            add = skill_dict.values()
+        else:
+            add = pokemon_dict.values()
+        
+        close_matches = difflib.get_close_matches(query, list(aliases.keys()) + list(add), n=settings.dym_limit, cutoff=settings.dym_threshold)
+        if len(close_matches) == 0:
+            await context.koduck.send_message(receive_message=context.message, content=settings.message_pokemon_lookup_no_result.format("Skill" if skill_lookup else "Pokemon", query))
+            return
+        
+        choices = []
+        no_duplicates = []
+        for close_match in close_matches:
+            try:
+                if aliases[close_match].lower() not in no_duplicates:
+                    choices.append((close_match, aliases[close_match]))
+                    no_duplicates.append(aliases[close_match].lower())
+            except KeyError:
+                if close_match.lower() not in no_duplicates:
+                    choices.append((close_match, close_match))
+                    no_duplicates.append(close_match.lower())
+        
+        output_string = ""
+        for i in range(len(choices)):
+            output_string += "\n{} {}".format(constants.number_emojis[i+1], choices[i][0] if choices[i][0] == choices[i][1] else "{} ({})".format(choices[i][0], choices[i][1]))
+        result = await choice_react(context, len(choices), settings.message_pokemon_lookup_no_result.format("Skill" if skill_lookup else "Pokemon", query) + "\n" + settings.message_pokemon_lookup_suggest + output_string)
+        if result is None:
+            return
+        else:
+            choice = choices[result][1]
+            if skill_lookup:
+                return skill_dict.get(choice.lower(), choice)
+            else:
+                return pokemon_dict.get(choice.lower(), choice)
+    
+    else:
+        return query
+
+async def choice_react(context, num_choices, question_string):
+    #there are only 9 (10) number emojis :(
+    num_choices = min(num_choices, 9)
+    num_choices = min(num_choices, settings.choice_react_limit)
+    the_message = await context.koduck.send_message(receive_message=context.message, content=question_string)
+    choice_emojis = constants.number_emojis[:num_choices+1]
+    
+    #add reactions
+    for i in range(len(choice_emojis)):
+        await the_message.add_reaction(choice_emojis[i])
+    
+    #wait for reaction (with timeout)
+    def check(reaction, user):
+        return reaction.message.id == the_message.id and user == context.message.author and str(reaction.emoji) in choice_emojis
+    try:
+        reaction, _ = await context.koduck.client.wait_for('reaction_add', timeout=settings.dym_timeout, check=check)
+    except asyncio.TimeoutError:
+        reaction = None
+    
+    #remove reactions
+    for i in range(len(choice_emojis)):
+        try:
+            await the_message.remove_reaction(choice_emojis[i], context.koduck.client.user)
+        except discord.errors.NotFound:
+            break
+    
+    #return the chosen answer if there was one
+    if reaction is None:
+        return
+    result_emoji = reaction.emoji
+    choice = choice_emojis.index(result_emoji)
+    if choice == 0:
+        return
+    else:
+        return choice-1

@@ -75,3 +75,4 @@ submitcompscore	shuffle_commands	submit_comp_score	prefix	3
 compscores	shuffle_commands	comp_scores	prefix	3
 next	shuffle_commands	next_stage	prefix	1
 nextx	shuffle_commands	next_stage_shorthand	prefix	1
+comp	shuffle_commands	comp	prefix	1

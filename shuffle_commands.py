@@ -142,7 +142,7 @@ async def pokemon(context, *args, **kwargs):
         return await last_stage_pokemon(context)
     
     #parse params
-    query_pokemon = await pokemon_lookup(context, query=args[0])
+    query_pokemon = await utils.pokemon_lookup(context, query=args[0])
     if query_pokemon is None:
         return "Unrecognized Pokemon"
     
@@ -158,7 +158,7 @@ async def skill(context, *args, **kwargs):
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_skill_no_param)
     
     #parse params
-    query_skill = await pokemon_lookup(context, query=args[0], skill_lookup=True)
+    query_skill = await utils.pokemon_lookup(context, query=args[0], skill_lookup=True)
     if query_skill is None:
         return "Unrecognized Skill"
     
@@ -213,7 +213,7 @@ async def exp(context, *args, **kwargs):
         if query_bp < 30 or query_bp > 90 or query_bp % 10 != 0:
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_exp_invalid_param)
     except ValueError:
-        query_pokemon = await pokemon_lookup(context, query=query)
+        query_pokemon = await utils.pokemon_lookup(context, query=query)
         if query_pokemon is None:
             return "Unrecognized Pokemon"
         pokemon_details = yadon.ReadRowFromTable(settings.pokemon_table, query_pokemon, named_columns=True)
@@ -292,7 +292,7 @@ async def next_stage(
     context: KoduckContext, *args: str, **kwargs: Any
 ) -> discord.Message | None:
     query_ = await latest_stage_query(context)
-
+    
     if not query_:
         return await context.koduck.send_message(
             receive_message=context.message,
@@ -303,9 +303,9 @@ async def next_stage(
             receive_message=context.message,
             content=settings.message_last_query_error,
         )
-
+    
     kwargs = query_.kwargs | kwargs
-
+    
     last_stage_id = query_.args[0]
     if last_stage_id.startswith("s") and last_stage_id[1:].isdigit():
         return await context.koduck.send_message(
@@ -319,7 +319,7 @@ async def next_stage(
         if next_id == 701:
             next_id = 1
         return await stage(context, str(next_id), **kwargs)
-
+    
     return await context.koduck.send_message(
             receive_message=context.message,
             content=settings.message_last_query_error,
@@ -333,10 +333,10 @@ async def stage(context, *args, **kwargs):
     #change current query type to ANY in case stage does not return a stage message
     user_query_history = context.koduck.query_history[context.message.author.id]
     user_query_history[-1] = UserQuery(QueryType.ANY, args=args, kwargs=kwargs)
-
+    
     if len(args) < 1:
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_no_param)
-
+    
     #allow space delimited parameters
     if len(args) == 1:
         temp = args[0].split(" ")
@@ -377,22 +377,25 @@ async def stage(context, *args, **kwargs):
     results = []
     #retrieve data
     if stage_type == "main":
-        values = yadon.ReadRowFromTable(settings.main_stages_table, str(stage_index))
-        if values is None:
+        stage_info = yadon.ReadRowFromTable(settings.main_stages_table, str(stage_index), named_columns=True)
+        if stage_info is None:
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_main_invalid_param.format(settings.main_stages_min_index, settings.main_stages_max_index))
-        results.append([str(stage_index)] + values)
+        stage_info["Index"] = str(stage_index)
+        results.append(stage_info)
     elif stage_type == "expert":
-        values = yadon.ReadRowFromTable(settings.expert_stages_table, str(stage_index))
-        if values is None:
+        stage_info = yadon.ReadRowFromTable(settings.expert_stages_table, str(stage_index), named_columns=True)
+        if stage_info is None:
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_expert_invalid_param.format(settings.expert_stages_min_index + 1, settings.expert_stages_max_index + 1))
-        results.append(["ex{}".format(stage_index)] + values)
+        stage_info["Index"] = "ex{}".format(stage_index)
+        results.append(stage_info)
     elif stage_type == "event":
-        values = yadon.ReadRowFromTable(settings.event_stages_table, str(stage_index))
-        if values is None:
+        stage_info = yadon.ReadRowFromTable(settings.event_stages_table, str(stage_index), named_columns=True)
+        if stage_info is None:
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_event_invalid_param.format(settings.event_stages_min_index, settings.event_stages_max_index))
-        results.append(["s{}".format(stage_index)] + values)
+        stage_info["Index"] = "s{}".format(stage_index)
+        results.append(stage_info)
     elif stage_type == "all":
-        query_pokemon = await pokemon_lookup(context, query=query_pokemon)
+        query_pokemon = await utils.pokemon_lookup(context, query=query_pokemon)
         if query_pokemon is None:
             return "Unrecognized Pokemon"
         
@@ -401,16 +404,16 @@ async def stage(context, *args, **kwargs):
         if eb_details_2 is not None:
             return await eb_details(context, *[query_pokemon], **kwargs)
         
-        main_stages = [(v[0],[str(k)]+v) for k,v in yadon.ReadTable(settings.main_stages_table).items()]
-        expert_stages = [(v[0],["ex{}".format(k)]+v) for k,v in yadon.ReadTable(settings.expert_stages_table).items()]
-        event_stages = [(v[0],["s{}".format(k)]+v) for k,v in yadon.ReadTable(settings.event_stages_table).items()]
+        main_stages = [(v["Pokemon"],{"Index":k}|v) for k,v in yadon.ReadTable(settings.main_stages_table, named_columns=True).items()]
+        expert_stages = [(v["Pokemon"],{"Index":"ex{}".format(k)}|v) for k,v in yadon.ReadTable(settings.expert_stages_table, named_columns=True).items()]
+        event_stages = [(v["Pokemon"],{"Index":"s{}".format(k)}|v) for k,v in yadon.ReadTable(settings.event_stages_table, named_columns=True).items()]
         all_stages = main_stages + expert_stages + event_stages
         results = []
-        for pokemon, values in all_stages:
+        for pokemon, stage_info in all_stages:
             if pokemon.lower() == query_pokemon.lower():
-                results.append(values)
+                results.append(stage_info)
     if len(results) == 0:
-        no_result_message = await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_no_result.format(query_pokemon))
+        return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_no_result.format(query_pokemon))
     
     #if a result number is given
     elif result_number != 0:
@@ -418,14 +421,14 @@ async def stage(context, *args, **kwargs):
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_stage_result_error.format(len(results)))
         
         res = results[result_number - 1]
-        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(res[0],), kwargs=kwargs | {"pokemon": res[1]})
+        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(res["Index"],), kwargs=kwargs | {"pokemon": res["Pokemon"]})
         if starting_board:
             return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_starting_board_embed(res))
         else:
             return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_stage_embed(res, shorthand=shorthand))
     
     elif len(results) == 1:
-        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[0][0],), kwargs=kwargs | {"pokemon": results[0][1]})
+        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[0]["Index"],), kwargs=kwargs | {"pokemon": results[0]["Pokemon"]})
         if starting_board:
             return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_starting_board_embed(results[0]))
         else:
@@ -435,15 +438,15 @@ async def stage(context, *args, **kwargs):
         indices = []
         output_string = ""
         for i in range(len(results)):
-            values = results[i]
-            indices.append(values[0])
+            stage_info = results[i]
+            indices.append(stage_info["Index"])
             if i < settings.choice_react_limit:
                 output_string += "\n{} {}".format(constants.number_emojis[i+1], indices[i])
         
-        choice = await choice_react(context, min(len(indices), settings.choice_react_limit), settings.message_stage_multiple_results + output_string)
+        choice = await utils.choice_react(context, min(len(indices), settings.choice_react_limit), settings.message_stage_multiple_results + output_string)
         if choice is None:
             return
-        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[choice][0],), kwargs=kwargs | {"pokemon": results[choice][1]})
+        user_query_history[-1] = UserQuery(QueryType.STAGE, args=(results[choice]["Index"],), kwargs=kwargs | {"pokemon": results[choice]["Pokemon"]})
         if starting_board:
             return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_starting_board_embed(results[choice]))
         else:
@@ -494,7 +497,7 @@ async def event(context, *args, **kwargs):
                 return await context.koduck.send_message(receive_message=context.message, content=settings.message_event_invalid_param)
         except ValueError:
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_event_invalid_param)
-    query_pokemon = await pokemon_lookup(context, query=args[0])
+    query_pokemon = await utils.pokemon_lookup(context, query=args[0])
     if query_pokemon is None:
         return "Unrecognized Pokemon"
     
@@ -748,7 +751,7 @@ async def skill_with_pokemon(context, *args, **kwargs):
     query_skill = args[0]
     
     #lookup and validate skill
-    query_skill = await pokemon_lookup(context, query=query_skill, skill_lookup=True)
+    query_skill = await utils.pokemon_lookup(context, query=query_skill, skill_lookup=True)
     if query_skill is None:
         return "Unrecognized Skill"
     
@@ -1040,7 +1043,7 @@ async def eb_rewards(context, *args, **kwargs):
         query_pokemon = utils.current_eb_pokemon()
     else:
         #parse params
-        query_pokemon = await pokemon_lookup(context, query=args[0])
+        query_pokemon = await utils.pokemon_lookup(context, query=args[0])
         if query_pokemon is None:
             return "Unrecognized Pokemon"
     
@@ -1073,7 +1076,7 @@ async def eb_details(context, *args, **kwargs):
             return await context.koduck.send_message(receive_message=context.message, content=settings.message_eb_invalid_param)
     
     #parse params
-    query_pokemon = await pokemon_lookup(context, query=args[0])
+    query_pokemon = await utils.pokemon_lookup(context, query=args[0])
     if query_pokemon is None:
         return "Unrecognized Pokemon"
     
@@ -1089,7 +1092,7 @@ async def eb_details(context, *args, **kwargs):
             start_level, end_level, stage_index = level_set.split("/")
             if int(end_level) < 0 or query_level < int(end_level):
                 break
-        values = yadon.ReadRowFromTable(settings.event_stages_table, stage_index)
+        stage_info = yadon.ReadRowFromTable(settings.event_stages_table, stage_index, named_columns=True)
         
         #extra string to show level range of this eb stage
         if int(start_level) == int(end_level) - 1:
@@ -1109,12 +1112,12 @@ async def eb_details(context, *args, **kwargs):
         except KeyError:
             starting_board = False
         
-        stage_info = ["s{}".format(stage_index)] + values
-
+        stage_info["Index"] = "s{}".format(stage_index)
+        
         user_id = context.message.author.id
         query_history = context.koduck.query_history[user_id]
         query_history[-1] = UserQuery(QueryType.STAGE, (f"s{stage_index}",), kwargs | {"pokemon": query_pokemon})
-
+        
         eb_reward = ""
         eb_rewards = yadon.ReadRowFromTable(settings.eb_rewards_table, query_pokemon)
         for entry in eb_rewards:
@@ -1135,6 +1138,10 @@ async def eb_details_shorthand(context, *args, **kwargs):
     kwargs["shorthand"] = True
     return await eb_details(context, *args, **kwargs)
 
+async def comp(context, *args, **kwargs):
+    comp_pokemon = utils.current_comp_pokemon()
+    return await stage(context, comp_pokemon, *args, **kwargs)
+
 async def week(context, *args, **kwargs):
     if len(args) < 1:
         query_week = utils.get_current_week()
@@ -1145,7 +1152,7 @@ async def week(context, *args, **kwargs):
             except ValueError:
                 return await context.koduck.send_message(receive_message=context.message, content=settings.message_week_invalid_param.format(settings.num_weeks, settings.num_weeks))
         else:
-            query_pokemon = await pokemon_lookup(context, query=args[0])
+            query_pokemon = await utils.pokemon_lookup(context, query=args[0])
             if query_pokemon is None:
                 return "Unrecognized Pokemon"
             
@@ -1166,7 +1173,8 @@ async def week(context, *args, **kwargs):
     return await context.koduck.send_message(receive_message=context.message, embed=embed_formatters.format_week_embed(query_week))
 
 async def next_week(context, *args, **kwargs):
-    args = [str(utils.get_current_week() % 24 + 1)]
+    add = int(args[0]) if len(args) > 0 and args[0].isdigit() else 1
+    args = [str((utils.get_current_week() % settings.num_weeks + add) % settings.num_weeks)]
     return await week(context, *args, **kwargs)
 
 async def sm_rewards(context, *args, **kwargs):
@@ -1217,76 +1225,12 @@ async def drain_list(context, *args, **kwargs):
     
     return await context.koduck.send_message(receive_message=context.message, content=output)
 
-#Look up a queried Pokemon to see if it exists as an alias (and/or in an additionally provided list), provide some suggestions to the user if it doesn't, and return the corrected query, otherwise None
-async def pokemon_lookup(context, query=None, enable_dym=True, skill_lookup=False, *args, **kwargs):
-    if query is None:
-        query = args[0]
-    
-    aliases = {k.lower():v[0] for k,v in yadon.ReadTable(settings.aliases_table).items()}
-    try:
-        query = aliases[query.lower()]
-    except KeyError:
-        pass
-    
-    pokemon_dict = {k.lower():k for k in yadon.ReadTable(settings.pokemon_table, named_columns=True).keys()}
-    skill_dict = {k.lower():k for k in yadon.ReadTable(settings.skills_table, named_columns=True).keys()}
-    #get properly capitalized name
-    try:
-        if skill_lookup:
-            query = skill_dict[query.lower()]
-        else:
-            query = pokemon_dict[query.lower()]
-    except KeyError:
-        pass
-    
-    if (not skill_lookup and query.lower() not in pokemon_dict.keys()) or (skill_lookup and query.lower() not in skill_dict.keys()):
-        if not enable_dym:
-            return
-        
-        if skill_lookup:
-            add = skill_dict.values()
-        else:
-            add = pokemon_dict.values()
-        
-        close_matches = difflib.get_close_matches(query, list(aliases.keys()) + list(add), n=settings.dym_limit, cutoff=settings.dym_threshold)
-        if len(close_matches) == 0:
-            await context.koduck.send_message(receive_message=context.message, content=settings.message_pokemon_lookup_no_result.format("Skill" if skill_lookup else "Pokemon", query))
-            return
-        
-        choices = []
-        no_duplicates = []
-        for close_match in close_matches:
-            try:
-                if aliases[close_match].lower() not in no_duplicates:
-                    choices.append((close_match, aliases[close_match]))
-                    no_duplicates.append(aliases[close_match].lower())
-            except KeyError:
-                if close_match.lower() not in no_duplicates:
-                    choices.append((close_match, close_match))
-                    no_duplicates.append(close_match.lower())
-        
-        output_string = ""
-        for i in range(len(choices)):
-            output_string += "\n{} {}".format(constants.number_emojis[i+1], choices[i][0] if choices[i][0] == choices[i][1] else "{} ({})".format(choices[i][0], choices[i][1]))
-        result = await choice_react(context, len(choices), settings.message_pokemon_lookup_no_result.format("Skill" if skill_lookup else "Pokemon", query) + "\n" + settings.message_pokemon_lookup_suggest + output_string)
-        if result is None:
-            return
-        else:
-            choice = choices[result][1]
-            if skill_lookup:
-                return skill_dict.get(choice.lower(), choice)
-            else:
-                return pokemon_dict.get(choice.lower(), choice)
-    
-    else:
-        return query
-
 async def submit_comp_score(context, *args, **kwargs):
     if len(args) < 3:
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_submit_comp_score_no_param)
     
     #parse and check competition pokemon
-    query_pokemon = await pokemon_lookup(context, query=args[0])
+    query_pokemon = await utils.pokemon_lookup(context, query=args[0])
     if query_pokemon is None:
         return "Unrecognized Pokemon"
     comp_pokemon = set()
@@ -1326,42 +1270,6 @@ async def comp_scores(context, *args, **kwargs):
     
     return await context.koduck.send_message(receive_message=context.message, embed=embed)
 
-async def choice_react(context, num_choices, question_string):
-    #there are only 9 (10) number emojis :(
-    num_choices = min(num_choices, 9)
-    num_choices = min(num_choices, settings.choice_react_limit)
-    the_message = await context.koduck.send_message(receive_message=context.message, content=question_string)
-    choice_emojis = constants.number_emojis[:num_choices+1]
-    
-    #add reactions
-    for i in range(len(choice_emojis)):
-        await the_message.add_reaction(choice_emojis[i])
-    
-    #wait for reaction (with timeout)
-    def check(reaction, user):
-        return reaction.message.id == the_message.id and user == context.message.author and str(reaction.emoji) in choice_emojis
-    try:
-        reaction, _ = await context.koduck.client.wait_for('reaction_add', timeout=settings.dym_timeout, check=check)
-    except asyncio.TimeoutError:
-        reaction = None
-    
-    #remove reactions
-    for i in range(len(choice_emojis)):
-        try:
-            await the_message.remove_reaction(choice_emojis[i], context.koduck.client.user)
-        except discord.errors.NotFound:
-            break
-    
-    #return the chosen answer if there was one
-    if reaction is None:
-        return
-    result_emoji = reaction.emoji
-    choice = choice_emojis.index(result_emoji)
-    if choice == 0:
-        return
-    else:
-        return choice-1
-
 async def remind_me(context, *args, **kwargs):
     user_reminders = yadon.ReadRowFromTable(settings.reminders_table, context.message.author.id)
     if not user_reminders:
@@ -1381,7 +1289,7 @@ async def remind_me(context, *args, **kwargs):
         yadon.WriteRowToTable(settings.reminders_table, context.message.author.id, user_reminders)
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_remind_me_week_success.format(query_week))
     elif len(args) > 0:
-        query_pokemon = await pokemon_lookup(context, query=args[0])
+        query_pokemon = await utils.pokemon_lookup(context, query=args[0])
         if query_pokemon is None:
             return "Unrecognized Pokemon"
         if query_pokemon in user_reminders[1].split("/"):
@@ -1417,7 +1325,7 @@ async def unremind_me(context, *args, **kwargs):
         yadon.WriteRowToTable(settings.reminders_table, context.message.author.id, user_reminders)
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_unremind_me_week_success.format(query_week))
     else:
-        query_pokemon = await pokemon_lookup(context, query=args[0])
+        query_pokemon = await utils.pokemon_lookup(context, query=args[0])
         if query_pokemon is None:
             return "Unrecognized Pokemon"
         if query_pokemon not in user_reminders[1].split("/"):

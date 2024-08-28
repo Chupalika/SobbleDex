@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os,re,difflib,json
+import utils, yadon, settings
 
 scriptdir=os.path.dirname(os.path.realpath(__file__))+os.sep
 shuffle_calc_json_filename="{}{}".format(scriptdir,"shuffle_calc_data.json")
@@ -45,14 +46,22 @@ async def sm(context, *args, **kwargs):
 				psid=int(al)
 				if psid>0 and selected_stage_index<300:selected_stage_index=psid-1
 			else:
-				possible_stages=difflib.get_close_matches(al,sm_stage_aliases)
-				if len(possible_stages)>0:
-					best_selected_stage_index=-1
-					for i,st in enumerate(sm_stage_aliases_by_stage):
-						if possible_stages[0] in st:
-							best_selected_stage_index=i
-							break
-					if best_selected_stage_index>=0:selected_stage_index=best_selected_stage_index
+				#possible_stages=difflib.get_close_matches(al,sm_stage_aliases)
+				#if len(possible_stages)>0:
+				#	best_selected_stage_index=-1
+				#	for i,st in enumerate(sm_stage_aliases_by_stage):
+				#		if possible_stages[0] in st:
+				#			best_selected_stage_index=i
+				#			break
+				#	if best_selected_stage_index>=0:selected_stage_index=best_selected_stage_index
+				query_pokemon = await utils.pokemon_lookup(context, query=args[0])
+				if query_pokemon is None:
+					return "Unrecognized Pokemon"
+				main_stages = [{"Index":k}|v for k,v in yadon.ReadTable(settings.main_stages_table, named_columns=True).items()]
+				for main_stage in main_stages:
+					if main_stage["Pokemon"].lower() == query_pokemon.lower():
+						selected_stage_index = int(main_stage["Index"]) - 1
+						break
 	if show_help or selected_stage_index==-1:
 		txts=["Test accuracy: 10 repeats per move","```Win%  Exp (Std%)  Moves  Team"]
 		for strat in sm_data:
