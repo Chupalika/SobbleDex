@@ -582,6 +582,7 @@ def validate_query(subqueries):
         subqueries = new_subqueries
     
     validated_queries = []
+    invalid_queries = []
     for subquery in subqueries:
         subquery = subquery.strip()
         #accept five (seven) different operations
@@ -591,17 +592,21 @@ def validate_query(subqueries):
                 operation = op
                 break
         if operation == "":
+            invalid_queries.append(subquery)
             continue
         
         #split
         left = subquery.split(operation)[0].strip().lower()
         if left not in ["dex", "type", "bp", "rml", "rmls", "maxap", "skill", "sk", "sortby", "se", "evospeed", "megaspeed", "name"]:
+            invalid_queries.append(subquery)
             continue
         if left in ["type", "skill", "sk", "sortby", "se", "name"] and operation not in ["=", "!="]:
+            invalid_queries.append(subquery)
             continue
         
         right = subquery.split(operation)[1].strip()
         if right == "":
+            invalid_queries.append(subquery)
             continue
         
         #skills maybe used an alias
@@ -612,17 +617,22 @@ def validate_query(subqueries):
             try:
                 right = int(right)
             except ValueError:
+                invalid_queries.append(subquery)
                 continue
         #make sure type and se are valid types
         elif left in ["type", "se"]:
             right = right.lower().capitalize()
             type_details = yadon.ReadRowFromTable(settings.types_table, right)
             if type_details is None:
+                invalid_queries.append(subquery)
                 continue
+        elif left == "sortby" and right.lower() not in ["bp", "maxap", "type", "evospeed", "megaspeed"]:
+            invalid_queries.append(subquery)
+            continue
         
         validated_queries.append((left, operation, right))
     
-    return validated_queries
+    return (validated_queries, invalid_queries)
 
 def pokemon_filter_results_to_string(buckets, use_emojis=False):
     farmable_pokemon = utils.get_farmable_pokemon()
@@ -656,7 +666,7 @@ async def query(context, *args, **kwargs):
     except KeyError:
         use_emojis = False
     
-    queries = validate_query(context["params"])
+    queries, invalid_queries = validate_query(context["params"])
     
     farmable = 0
     if "farmable" in args:
@@ -715,6 +725,8 @@ async def query(context, *args, **kwargs):
         return await context.koduck.send_message(receive_message=context.message, content=settings.message_query_invalid_param)
     
     hits, hits_bp, hits_max_ap, hits_type, hits_evo_speed = pokemon_filter(queries, "mega" in args or "mega" in kwargs, "fake" in args or "fake" in kwargs, farmable, ss_filter, "hasmega" in args or "hasmega" in kwargs)
+    #if len(hits) > settings.query_limit:
+    #    return await context.koduck.send_message(receive_message=context.message, content=settings.message_query_limit_reached.format(len(hits), settings.query_limit))
     
     #sort results and create a string to send
     header = settings.message_query_result.format(len(hits), query_string, "{}")
@@ -762,7 +774,7 @@ async def skill_with_pokemon(context, *args, **kwargs):
     
     copy_of_params = context["params"].copy()
     copy_of_params.remove(args[0])
-    queries = validate_query(copy_of_params)
+    queries, invalid_queries = validate_query(copy_of_params)
     
     farmable = 0
     if "farmable" in args:
@@ -1356,7 +1368,7 @@ async def background_task(koduck_instance):
             week_changed = True
         event_pokemon = utils.get_current_event_pokemon()
         reminders = yadon.ReadTable(settings.reminders_table)
-        for userid, v in reminders.items():
+        for userid_or_channelid, v in reminders.items():
             reminder_strings = []
             reminder_weeks = v[0].split("/")
             reminder_pokemon = v[1].split("/")
@@ -1366,7 +1378,11 @@ async def background_task(koduck_instance):
                 if ep in reminder_pokemon:
                     reminder_strings.append(settings.message_reminder_pokemon.format(ep))
             if reminder_strings:
-                the_user = await koduck_instance.client.fetch_user(userid)
-                await the_user.send(content=settings.message_reminder_header.format(userid, "\n".join(reminder_strings)))
+                if userid_or_channelid.startswith("#"):
+                    the_channel = await koduck_instance.client.fetch_channel(userid_or_channelid[1:])
+                    await the_channel.send(content="\n".join(reminder_strings))
+                else:
+                    the_user = await koduck_instance.client.fetch_user(userid_or_channelid)
+                    await the_user.send(content=settings.message_reminder_header.format(userid_or_channelid, "\n".join(reminder_strings)))
 
 settings.background_task = background_task

@@ -251,10 +251,10 @@ def format_starting_board_embed(stage_info):
         index = stage_info["Index"]
     elif stage_info["Index"].startswith("ex"):
         stage_type = "Expert"
-        index = index[2:]
+        index = stage_info["Index"][2:]
     elif stage_info["Index"].startswith("s"):
         stage_type = "Event"
-        index = index[1:]
+        index = stage_info["Index"][1:]
     
     header = "{} Stage {}: {} {}".format(stage_type, index, stage_info["Pokemon"], utils.emojify("[{}]".format(stage_info["Pokemon"])))
     type = yadon.ReadRowFromTable(settings.pokemon_table, stage_info["Pokemon"], named_columns=True)["Type"]

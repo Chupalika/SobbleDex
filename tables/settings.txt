@@ -98,6 +98,7 @@ message_event_no_result	Could not find an event with the Pokemon '{}'
 message_event_result_error	Result number wasn't in the range of results ({})	
 message_query_result	Found {} Pokemon with {} (sorted by {})	
 message_query_invalid_param	Sorry, I didn't recognize any of those filters	
+message_query_limit_reached	Sorry, too many results to show ({}/{})	
 message_eb_rewards_no_param	I need a Pokemon name to look up EB rewards for!	
 message_eb_rewards_no_result	Could not find an Escalation Battles with the Pokemon '{}'	
 message_eb_no_param	I need a Pokemon name to look up an EB for!	
@@ -166,6 +167,7 @@ reminders_table	shuffle_tables/reminders
 user_cooldown_1	1000	
 comp_scores_table	shuffle_tables/comp_scores	
 current_comp_score_id	5	3
-message_last_query_invalid_stage	The command only works with a main or EX stage
-message_last_query_error	Unexpected error, contact my owner to investigate
-message_no_previous_stage	No stage in your recent query history
+message_last_query_invalid_stage	The command only works with a main or EX stage	
+message_last_query_error	Unexpected error, contact my owner to investigate	
+message_no_previous_stage	No stage in your recent query history	
+query_limit	100	2
