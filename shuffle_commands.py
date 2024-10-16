@@ -1171,12 +1171,12 @@ async def week(context, *args, **kwargs):
             #retrieve data
             results = []
             for k,v in yadon.ReadTable(settings.events_table).items():
-                event_pokemon = [x.lower() for x in v[1].split("/")]
+                event_pokemon = [x.lower() for x in v[1].split("/") if v[3] == "Rotation"]
                 if query_pokemon.lower() in event_pokemon:
                     week = v[4]
                     results.append(week)
             if len(results) < 1:
-                return await context.koduck.send_message(receive_message=context.message, content=settings.message_event_no_result.format(query_pokemon))
+                return await context.koduck.send_message(receive_message=context.message, content=settings.message_week_no_result.format(query_pokemon))
             sorted_results = [int(x)+1 for x in results if int(x)+1 >= utils.get_current_week()] + [int(x)+1 for x in results if int(x)+1 < utils.get_current_week()]
             query_week = sorted_results[0]
         if query_week < 1 or query_week > settings.num_weeks:

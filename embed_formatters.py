@@ -364,7 +364,7 @@ def format_eb_details_embed(values):
     stats = ""
     for levelset in level_sets:
         start_level, end_level, stage_index = levelset.split("/")
-        stage_values = yadon.ReadRowFromTable(settings.event_stages_table, stage_index)
+        stage_info = yadon.ReadRowFromTable(settings.event_stages_table, stage_index, named_columns=True)
         
         if end_level == "-1":
             levels = "**Levels {}+**".format(start_level)
@@ -374,13 +374,13 @@ def format_eb_details_embed(values):
             levels = "**Levels {} to {}**".format(start_level, int(end_level) - 1)
         
         extra = ""
-        default_supports = stage_values[10].split("/")
+        default_supports = stage_info["Default_Supports"].split("/")
         if len(default_supports) == 3:
             extra = " **(3 supports)**"
         elif len(default_supports) == 5:
             extra = utils.emojify(" **(5th support: [{}])**".format(default_supports[0]))
         
-        stats += "{}: {}{} / {}{}\n".format(levels, stage_values[1], " + {}".format(stage_values[16]) if stage_values[16] != "0" else "", stage_values[4] if stage_values[4] != "0" else stage_values[3], extra)
+        stats += "{}: {}{} / {}{}\n".format(levels, stage_info["HP_Mobile"], " + {}".format(stage_info["Extra_HP"]) if stage_info["Extra_HP"] != "0" else "", stage_info["Seconds"] if stage_info["Seconds"] != "0" else stage_info["Moves_Mobile"], extra)
     
     embed = discord.Embed(title="{} Escalation Battles Details".format(pokemon_name), color=0x4e7e4e, description=stats)
     return embed

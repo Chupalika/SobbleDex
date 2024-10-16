@@ -89,7 +89,7 @@ def get_current_event_pokemon():
             ans += event_pokemon.split("/")
         elif repeat_type == "Yearly" and today.month == int(repeat_param_1):
             #assuming all yearly events are daily stage type
-            event_start_date = datetime.datetime(today.year, int(repeat_param_1), int(repeat_param_2))
+            event_start_date = datetime.datetime(today.year, int(repeat_param_1), int(repeat_param_2), tzinfo=pytz.utc)
             #assuming the format "3 days"
             duration = int(duration_string.split(" ")[0])
             td = today - event_start_date
